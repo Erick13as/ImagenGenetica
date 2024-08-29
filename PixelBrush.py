@@ -7,18 +7,21 @@ import imageio
 
 # Configuración de parámetros
 num_individuals = 50
-num_generations = 500
+num_generations = 500  # Este se usará solo si no se establece fitness_threshold
 num_triangles = 50
 mutation_rate = 0.01
 elite_percentage = 0.1
+fitness_threshold = None  # Establecer este valor para detener cuando se alcance
 
 # Crear la carpeta 'img' si no existe
 if not os.path.exists('img'):
     os.makedirs('img')
 
-# Preprocesar la imagen de entrada (sin necesidad de convertir a escala de grises)
+# Preprocesar la imagen de entrada (convertir a escala de grises)
 def preprocess_image(image_path):
-    image = Image.open(image_path)
+    image = Image.open(image_path).convert('L')  # Convertir a escala de grises
+    bw_image_name = os.path.splitext(image_path)[0] + "BW.jpg"
+    image.save(bw_image_name)  # Guardar la imagen en blanco y negro
     return np.array(image) / 255.0
 
 # Crear un individuo
@@ -30,7 +33,7 @@ def create_individual(image_size):
 
 # Dibujar un individuo en una imagen
 def draw_individual(individual, image_size):
-    image = Image.new('L', image_size, color=255)
+    image = Image.new('L', image_size[:2], color=255)  # Solo usar los dos primeros elementos de image_size
     draw = ImageDraw.Draw(image, 'L')
     for triangle in individual:
         draw.polygon([triangle[0:2], triangle[2:4], triangle[4:6]], fill=int(triangle[6]*255))
@@ -38,7 +41,7 @@ def draw_individual(individual, image_size):
 
 # Función de fitness
 def fitness(individual, target_image):
-    generated_image = draw_individual(individual, target_image.shape)
+    generated_image = draw_individual(individual, target_image.shape[:2])  # Solo usar los dos primeros elementos de shape
     return -np.sum(np.abs(generated_image - target_image))
 
 # Selección
@@ -72,24 +75,33 @@ def mutate(individual, image_size):
 
 # Guardar la mejor imagen de cada generación
 def save_image(individual, image_size, filename):
-    image = Image.fromarray((draw_individual(individual, image_size) * 255).astype(np.uint8))
+    image = Image.fromarray((draw_individual(individual, image_size[:2]) * 255).astype(np.uint8))
     image.save(os.path.join('img', filename))
 
 # Algoritmo genético principal
-def genetic_algorithm(target_image, image_size):
+def genetic_algorithm(target_image, image_size, fitness_threshold=None):
     population = [create_individual(image_size) for _ in range(num_individuals)]
     best_fitness = []
     average_fitness = []
     best_images = []
 
-    for generation in range(num_generations):
+    generation = 0
+    while True:
         fitness_scores = [fitness(ind, target_image) for ind in population]
-        best_fitness.append(max(fitness_scores))
+        best_fitness_score = max(fitness_scores)
+        best_fitness.append(best_fitness_score)
         average_fitness.append(np.mean(fitness_scores))
         best_individual = population[np.argmax(fitness_scores)]
 
         save_image(best_individual, image_size, f"generation_{generation}.jpg")
         best_images.append(os.path.join('img', f"generation_{generation}.jpg"))
+
+        if fitness_threshold and best_fitness_score >= fitness_threshold:
+            print(f"Fitness threshold of {fitness_threshold} reached at generation {generation}.")
+            break
+
+        if generation >= num_generations and not fitness_threshold:
+            break
 
         selected_population = select_population(population, fitness_scores)
         new_population = []
@@ -101,10 +113,11 @@ def genetic_algorithm(target_image, image_size):
             new_population.append(child)
 
         population = new_population
+        generation += 1
 
     # Mostrar gráficos de la evolución del fitness
-    plt.plot(range(num_generations), best_fitness, label="Best Fitness")
-    plt.plot(range(num_generations), average_fitness, label="Average Fitness")
+    plt.plot(range(generation + 1), best_fitness, label="Best Fitness")
+    plt.plot(range(generation + 1), average_fitness, label="Average Fitness")
     plt.xlabel("Generations")
     plt.ylabel("Fitness")
     plt.legend()
@@ -115,7 +128,7 @@ def genetic_algorithm(target_image, image_size):
     imageio.mimsave(os.path.join('img', "evolution.gif"), images, duration=0.2)
 
 # Ejecución del algoritmo
-image_path = 'Prueba.jpeg'
+image_path = 'Original.jpg'
 target_image = preprocess_image(image_path)
 image_size = target_image.shape
-genetic_algorithm(target_image, image_size)
+genetic_algorithm(target_image, image_size, fitness_threshold=-20)
