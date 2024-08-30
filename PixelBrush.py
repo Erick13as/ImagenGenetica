@@ -7,10 +7,11 @@ import imageio
 
 # Configuración de parámetros
 num_individuals = 50
-num_generations = 500  # Este se usará solo si no se establece fitness_threshold
+num_generations = 500  # Se usará solo si no se establece fitness_threshold
 num_triangles = 50
-mutation_rate = 0.01
-elite_percentage = 0.1
+initial_mutation_rate = 0.01  # Tasa de mutación inicial
+elite_percentage = 0.05  # Elitismo controlado: 5% de los mejores individuos
+new_individuals_rate = 0.1  # Introducción de nuevos individuos en cada generación
 fitness_threshold = None  # Establecer este valor para detener cuando se alcance
 
 # Crear la carpeta 'img' si no existe
@@ -60,8 +61,8 @@ def crossover(parent1, parent2):
             child.append(parent2[i])
     return child
 
-# Mutación
-def mutate(individual, image_size):
+# Mutación adaptativa
+def mutate(individual, image_size, mutation_rate):
     for i in range(len(individual)):
         triangle = list(individual[i])  # Convertir a lista para mutar
         if random.random() < mutation_rate:
@@ -84,6 +85,7 @@ def genetic_algorithm(target_image, image_size, fitness_threshold=None):
     best_fitness = []
     average_fitness = []
     best_images = []
+    mutation_rate = initial_mutation_rate
 
     generation = 0
     while True:
@@ -106,14 +108,26 @@ def genetic_algorithm(target_image, image_size, fitness_threshold=None):
         selected_population = select_population(population, fitness_scores)
         new_population = []
 
-        while len(new_population) < num_individuals:
+        # Crear nueva población a través de cruces y mutaciones
+        while len(new_population) < num_individuals * (1 - new_individuals_rate):
             parent1, parent2 = random.sample(selected_population, 2)
             child = crossover(parent1, parent2)
-            child = mutate(child, image_size)
+            child = mutate(child, image_size, mutation_rate)
             new_population.append(child)
+
+        # Introducir nuevos individuos aleatorios
+        while len(new_population) < num_individuals:
+            new_population.append(create_individual(image_size))
 
         population = new_population
         generation += 1
+
+        # Ajustar la tasa de mutación adaptativamente
+        diversity = np.std(fitness_scores)
+        if diversity < 0.1:  # Umbral de diversidad (ajústalo según sea necesario)
+            mutation_rate = min(1.0, mutation_rate * 1.5)
+        else:
+            mutation_rate = initial_mutation_rate
 
     # Mostrar gráficos de la evolución del fitness
     plt.plot(range(generation + 1), best_fitness, label="Best Fitness")
@@ -131,4 +145,4 @@ def genetic_algorithm(target_image, image_size, fitness_threshold=None):
 image_path = 'Original.jpg'
 target_image = preprocess_image(image_path)
 image_size = target_image.shape
-genetic_algorithm(target_image, image_size, fitness_threshold=-20)
+genetic_algorithm(target_image, image_size, fitness_threshold=-50)
