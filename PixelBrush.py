@@ -124,7 +124,7 @@ def genetic_algorithm(target_image, image_size, fitness_threshold=None):
 
         # Ajustar la tasa de mutación adaptativamente
         diversity = np.std(fitness_scores)
-        if diversity < 0.1:  # Umbral de diversidad (ajústalo según sea necesario)
+        if diversity < 0.1:  # Umbral de diversidad 
             mutation_rate = min(1.0, mutation_rate * 1.5)
         else:
             mutation_rate = initial_mutation_rate
